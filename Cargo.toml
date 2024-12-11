@@ -1,0 +1,10 @@
+[package]
+name = "cccut"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[[bin]]
+name = "cccut"
+path = "src/main.rs"
