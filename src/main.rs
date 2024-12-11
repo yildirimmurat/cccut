@@ -74,6 +74,7 @@ fn output_by_field(column: Option<String>, filename: String) -> io::Result<()> {
             println!("{}", fields[column as usize - 1]);
         } else {
             println!("Column {} not found in line", column);
+            break;
         }
     }
 
