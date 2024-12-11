@@ -1,62 +1,52 @@
 use std::fs::File;
-use std::io;
-use std::io::{BufRead, BufReader};
-
-const OPTION_FIELD: &str = "field";
+use std::io::{self, BufRead, BufReader, Write};
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
+    let mut column: u32 = 0;
+    let mut delimiter: char = '\t';
+    let mut filename = "";
 
-    let (option_type, column, filename) = if args.len() == 3 {
-        let option = args[1].trim(); // -f2
-        let (option_type, column) = if option.starts_with("-f") {
-            (Some(OPTION_FIELD.to_string()), Some(option[2..].to_string()))
-        } else {
-            println!("Invalid option format: {}", option);
-            return Ok(());
-        };
-        (option_type, column, args[2].clone())
-    } else if args.len() == 2 {
-        (None, None, args[2].clone())
-    } else {
-        println!("Usage cccut [option] <filename>");
-        return Ok(());
-    };
-
-    match option_type {
-        Some(option_type) => {
-            match option_type.as_str() {
-                OPTION_FIELD => {
-                    output_by_field(column, filename)
-                },
-                _ => {
-                    println!("Invalid option type: {}", option_type);
-                    Ok(())
-                },
+    for arg in &args[1..] {
+        if arg.starts_with("-") {
+            if let Some(val) = arg.strip_prefix("-f") {
+                if let Ok(num) = val.parse::<u32>() {
+                    column = num;
+                } else {
+                    println!("Invalid value for column: {}", val);
+                    return Ok(());
+                }
+            } else if let Some(val) = arg.strip_prefix("-d") {
+                if val.len() == 1 {
+                    delimiter = val.chars().next().unwrap();
+                } else {
+                    println!("Invalid value for delimiter: {}", delimiter);
+                    return Ok(());
+                }
+            } else {
+                println!("Unrecognized option: {}", arg);
+                return Ok(());
             }
-        },
-        None => {
-            println!("You must specify a list of bytes, characters, or fields");
-            Ok(())
-        },
+        } else {
+            if arg.starts_with("|") {
+                break;
+            }
+            filename = arg;
+        }
+    }
+
+    if column == 0 {
+        println!("No column specified");
+        Ok(())
+    } else if filename.is_empty() {
+        println!("No filename specified");
+        Ok(())
+    } else {
+        output_by_field(filename, column, delimiter)
     }
 }
 
-fn output_by_field(column: Option<String>, filename: String) -> io::Result<()> {
-    let column:u32  = match column {
-            Some(c) => match c.parse::<u32>() {
-                Ok(num) => num,
-            Err(_) => {
-                println!("Invalid column number: {}", c);
-                return Ok(());
-            }
-        },
-        None => {
-            println!("You must specify a column number");
-            return Ok(());
-        }
-    };
-
+fn output_by_field(filename: &str, column: u32, delimiter: char) -> io::Result<()> {
     let file = File::open(&filename);
     let reader: BufReader<File> = match file {
         Ok(file) => BufReader::new(file),
@@ -68,10 +58,17 @@ fn output_by_field(column: Option<String>, filename: String) -> io::Result<()> {
 
     for line in reader.lines() {
         let line = line?;
-        let fields: Vec<&str> = line.split('\t').collect();
+        let fields: Vec<&str> = line.split(delimiter).collect();
 
         if column > 0 && column <= fields.len() as u32 {
-            println!("{}", fields[column as usize - 1]);
+            // Try to write the result to stdout, and ignore BrokenPipe error
+            if let Err(e) = writeln!(io::stdout(), "{}", fields[column as usize - 1]) {
+                return if e.kind() == io::ErrorKind::BrokenPipe {
+                    Ok(()) // Gracefully exit if pipe is closed
+                } else {
+                    Err(e) // Propagate other errors
+                }
+            }
         } else {
             println!("Column {} not found in line", column);
             break;
