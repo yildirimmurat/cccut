@@ -44,6 +44,7 @@ Song title\n\
 
     assert_eq!(expected, actual);
 }
+
 #[test]
 fn test_field_with_multiple_columns() {
     let expected = "\
@@ -56,6 +57,27 @@ Song title,Artist\n\
     let output = std::process::Command::new("bash")
         .arg("-c")
         .arg("cargo run -- -f \"1 2\" -d, tests/fourchords.csv | head -n5")
+        .output()
+        .expect("failed to execute command");
+
+    let binding: Cow<str> = String::from_utf8_lossy(&output.stdout);
+    let actual: &str = binding.trim_start_matches("\u{feff}").trim(); // Remove BOM character at the start
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+fn test_input_stream() {
+    let expected = "\
+\"Young Volcanoes\",Fall Out Boy\n\
+\"You Found Me\",The Fray\n\
+\"You'll Think Of Me\",Keith Urban\n\
+\"You're Not Sorry\",Taylor Swift\n\
+\"Zombie\",The Cranberries";
+
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg("tail -n5 tests/fourchords.csv | cargo run -- -d, -f \"1 2\" -")
         .output()
         .expect("failed to execute command");
 

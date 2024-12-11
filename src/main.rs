@@ -9,7 +9,7 @@ fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
     let mut columns: Vec<u32> = Vec::new();  // This will hold the columns as u32
     let mut delimiter: char = '\t';
-    let mut filename = "";
+    let mut filename = "-"; // if there is no filename then, stdin
 
     let mut i = 1;
     while i < args.len() {
@@ -60,7 +60,7 @@ fn main() -> io::Result<()> {
                     println!("Invalid value for delimiter: {}", delimiter);
                     return Ok(());
                 }
-            } else {
+            } else if arg != "-" {
                 println!("Unrecognized option: {}", arg);
                 return Ok(());
             }
@@ -87,13 +87,11 @@ fn main() -> io::Result<()> {
 }
 
 fn output_by_field(filename: &str, columns: &[u32], delimiter: char) -> io::Result<()> {
-    let file = File::open(&filename);
-    let reader: BufReader<File> = match file {
-        Ok(file) => BufReader::new(file),
-        Err(_) => {
-            println!("Invalid filename: {}", filename);
-            return Ok(());
-        },
+    let reader: Box<dyn BufRead> = if filename == "-" {
+        Box::new(io::stdin().lock())
+    } else {
+        let file = File::open(filename)?;
+        Box::new(BufReader::new(file))
     };
 
     for line in reader.lines() {
